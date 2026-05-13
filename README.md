@@ -1,13 +1,13 @@
 # WhatsApp AI Bot
 
-A personal WhatsApp bot powered by Claude Opus 4.7. Message your own number to analyze chats, summarize group conversations, and draft replies in your writing style.
+A personal WhatsApp bot powered by Google Gemini 2.0 Flash. Message your own number to analyze chats, summarize group conversations, and draft replies in your writing style.
 
 ## Setup
 
 ```bash
 npm install
 cp .env.example .env
-# Add your ANTHROPIC_API_KEY to .env
+# Add your GOOGLE_API_KEY to .env
 node index.js
 ```
 
@@ -22,4 +22,4 @@ Scan the QR code with WhatsApp, then message yourself:
 ## Requirements
 
 - Node.js 18+
-- An [Anthropic API key](https://console.anthropic.com/)
+- A [Google AI Studio API key](https://aistudio.google.com/apikey)
