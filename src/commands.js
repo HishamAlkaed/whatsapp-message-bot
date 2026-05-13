@@ -1,5 +1,5 @@
-const Anthropic = require('@anthropic-ai/sdk');
-const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+const { GoogleGenerativeAI } = require('@google/generative-ai');
+const genAI = new GoogleGenerativeAI(process.env.GOOGLE_API_KEY);
 
 const SYSTEM_PROMPT = `You are a personal WhatsApp assistant helping the user analyze their conversations and draft messages.
 You help with:
@@ -22,22 +22,29 @@ async function handleCommand(command, client, store) {
   if (chatList.length === 0) return "You don't seem to have any WhatsApp chats yet.";
 
   // Step 1: Routing — identify intent + target chat
-  const routingResponse = await anthropic.messages.create({
-    model: 'claude-opus-4-7',
-    max_tokens: 512,
-    thinking: { type: 'adaptive' },
-    system: 'Identify which WhatsApp chat a user is referring to and what they want to do. Respond only with valid JSON.',
-    messages: [{
-      role: 'user',
-      content: `User command: "${command}"\n\nAvailable chats:\n${chatList.map(c => `${c.index}. [${c.isGroup ? 'Group' : 'DM'}] ${c.name}`).join('\n')}\n\nRespond with JSON only:\n{\n  "intent": "summarize" | "analyze" | "draft_reply" | "other",\n  "chatNumber": <1-${chatList.length} or null if unclear>,\n  "details": "<what specifically to analyze or draft>"\n}`,
-    }],
+  const routingModel = genAI.getGenerativeModel({
+    model: 'gemini-2.0-flash',
+    generationConfig: { responseMimeType: 'application/json' },
   });
 
+  const routingPrompt = `Identify which WhatsApp chat a user is referring to and what they want to do.
+
+User command: "${command}"
+
+Available chats:
+${chatList.map(c => `${c.index}. [${c.isGroup ? 'Group' : 'DM'}] ${c.name}`).join('\n')}
+
+Respond with JSON only:
+{
+  "intent": "summarize" | "analyze" | "draft_reply" | "other",
+  "chatNumber": <1-${chatList.length} or null if unclear>,
+  "details": "<what specifically to analyze or draft>"
+}`;
+
   let routing;
-  const routingText = routingResponse.content.find(b => b.type === 'text')?.text || '';
   try {
-    const jsonMatch = routingText.match(/\{[\s\S]*?\}/);
-    routing = JSON.parse(jsonMatch?.[0] ?? '{}');
+    const routingResult = await routingModel.generateContent(routingPrompt);
+    routing = JSON.parse(routingResult.response.text());
   } catch {
     routing = { intent: 'other', chatNumber: null };
   }
@@ -73,17 +80,14 @@ async function handleCommand(command, client, store) {
     userPrompt = `User asked: "${command}"\n\nThis is about the conversation in ${targetChat.name}:\n---\n${formatted}`;
   }
 
-  // Step 4: Final Claude response
-  const response = await anthropic.messages.create({
-    model: 'claude-opus-4-7',
-    max_tokens: 1024,
-    thinking: { type: 'adaptive' },
-    system: SYSTEM_PROMPT,
-    messages: [{ role: 'user', content: userPrompt }],
+  // Step 4: Final Gemini response
+  const responseModel = genAI.getGenerativeModel({
+    model: 'gemini-2.0-flash',
+    systemInstruction: SYSTEM_PROMPT,
   });
 
-  const text = response.content.find(b => b.type === 'text')?.text;
-  return text || 'Sorry, I could not generate a response.';
+  const result = await responseModel.generateContent(userPrompt);
+  return result.response.text() || 'Sorry, I could not generate a response.';
 }
 
 function formatMessages(messages) {

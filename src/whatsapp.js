@@ -1,20 +1,26 @@
 const { Client, LocalAuth } = require('whatsapp-web.js');
 const qrcode = require('qrcode-terminal');
+const fs = require('fs');
 const { MessageStore } = require('./messageStore');
 const { handleCommand } = require('./commands');
+
+const QR_FILE = '/tmp/whatsapp-qr.txt';
 
 async function initWhatsApp() {
   const store = new MessageStore();
   const client = new Client({
     authStrategy: new LocalAuth({ dataPath: './.wwebjs_auth' }),
+    authTimeoutMs: 300000,
     puppeteer: {
       headless: true,
-      args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage', '--disable-gpu'],
+      args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage', '--disable-gpu', '--ignore-certificate-errors'],
     },
   });
 
   client.on('qr', (qr) => {
-    console.log('\n📱 Scan this QR code with your WhatsApp app:\n');
+    // Write raw QR string to file so it can be read externally
+    fs.writeFileSync(QR_FILE, qr);
+    console.log('\n📱 QR code ready — scan with WhatsApp\n');
     qrcode.generate(qr, { small: true });
   });
 
